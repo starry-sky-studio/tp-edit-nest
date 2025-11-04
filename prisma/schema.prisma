@@ -13,3 +13,177 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ============================================
+// User & Authentication Models
+// ============================================
+
+/// 用户表 - 存储用户的基本信息
+///
+/// 设计说明：
+/// 1. passwordHash 设为可选：支持纯第三方登录用户（如只用 Google/GitHub 登录的用户）
+///    如果用户使用本地密码登录，则存储 bcrypt/argon2 加密后的哈希值
+/// 2. 一个用户可以有多个 Account（支持同时绑定 Google 和 GitHub）
+/// 3. 一个用户可以有多个角色（通过 UserRole 中间表实现多对多关系）
+/// 4. email 设为唯一且添加索引：用于快速查找和登录验证
+model User {
+  id           Int         @id @default(autoincrement())
+  email        String      @unique // 邮箱，用于登录和找回密码
+  name         String?     // 用户昵称（可选）
+  avatarUrl    String?     // 头像 URL（可选，可从第三方登录提供商获取）
+  passwordHash String?     // 本地密码哈希（可选，仅本地登录用户需要）
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  accounts     Account[]   // 关联的第三方登录账户（一个用户可以有多个）
+  userRoles    UserRole[]  // 用户拥有的角色（多对多关系）
+
+  @@index([email]) // 为邮箱添加索引，加速登录查询
+}
+
+/// 第三方登录账户表 - 存储用户的第三方登录凭证信息
+///
+/// 设计说明：
+/// 1. 支持一个用户绑定多个第三方登录方式（如同时绑定 Google 和 GitHub）
+/// 2. provider + providerAccountId 组合唯一：防止同一第三方账户绑定多个用户
+/// 3. 存储 accessToken 和 refreshToken：用于后续调用第三方 API（如获取用户信息）
+/// 4. expiresAt：token 过期时间（Unix 时间戳），用于判断是否需要刷新 token
+/// 5. onDelete: Cascade：用户删除时，自动删除关联的第三方账户
+///
+/// 第三方登录流程：
+/// - Google 登录：provider = 'google'，providerAccountId = Google 返回的 sub/user_id
+/// - GitHub 登录：provider = 'github'，providerAccountId = GitHub 返回的 id
+/// - 本地登录：provider = 'credentials'，providerAccountId 可以为空或存储邮箱
+model Account {
+  id                 Int          @id @default(autoincrement())
+  userId             Int          // 关联的用户 ID
+  provider           AuthProvider // 登录提供商（google/github/credentials）
+  providerAccountId  String      // 第三方提供商返回的唯一用户 ID（如 Google 的 sub，GitHub 的 id）
+
+  // OAuth Token 相关字段（用于后续调用第三方 API）
+  accessToken        String?     // OAuth access token（用于调用第三方 API）
+  refreshToken       String?     // OAuth refresh token（用于刷新 access token）
+  expiresAt          Int?        // token 过期时间（Unix 时间戳，秒级）
+  scope              String?     // OAuth 授权范围（如 'read:user email'）
+  tokenType          String?     // token 类型（通常是 'Bearer'）
+
+  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 唯一约束：同一提供商的同一账户只能绑定一个用户
+  // 例如：Google 的某个 sub 只能绑定到一个 User
+  @@unique([provider, providerAccountId])
+  @@index([userId]) // 为 userId 添加索引，加速查询用户的所有登录账户
+}
+
+/// 登录提供商枚举
+///
+/// - google: Google OAuth 登录
+/// - github: GitHub OAuth 登录
+/// - credentials: 本地用户名密码登录
+enum AuthProvider {
+  google      // Google OAuth 2.0
+  github      // GitHub OAuth 2.0
+  credentials // 本地凭证登录（邮箱 + 密码）
+}
+
+// ============================================
+// Authorization Models (Roles & Permissions)
+// ============================================
+
+/// 角色表 - 定义系统中的角色（如：admin、user、moderator）
+///
+/// 设计说明：
+/// 1. 使用 RBAC（基于角色的访问控制）模型：用户 -> 角色 -> 权限
+/// 2. 角色与权限是多对多关系：一个角色可以有多个权限，一个权限可以分配给多个角色
+/// 3. 用户与角色是多对多关系：一个用户可以有多个角色，一个角色可以分配给多个用户
+///
+/// 示例：
+/// - 角色 "admin" 可以拥有 "user:read", "user:write", "user:delete" 等权限
+/// - 角色 "user" 只能拥有 "user:read" 权限
+model Role {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique // 角色名称（如：'admin', 'user', 'moderator'）
+  description     String?           // 角色描述（可选）
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  rolePermissions RolePermission[]  // 角色拥有的权限（多对多关系）
+  userRoles       UserRole[]        // 拥有该角色的用户（多对多关系）
+}
+
+/// 权限表 - 定义系统中的具体权限（如：user:read, user:write, post:delete）
+///
+/// 设计说明：
+/// 1. 权限命名建议使用格式：资源:操作（如 'user:read', 'post:delete'）
+/// 2. 权限与角色是多对多关系：通过 RolePermission 中间表关联
+/// 3. 不直接关联用户：遵循 RBAC 模型，用户通过角色间接获得权限
+///
+/// 示例权限：
+/// - 'user:read': 读取用户信息
+/// - 'user:write': 创建/修改用户
+/// - 'user:delete': 删除用户
+/// - 'post:read': 读取文章
+/// - 'post:write': 创建/修改文章
+/// - 'post:delete': 删除文章
+model Permission {
+  id              Int               @id @default(autoincrement())
+  name            String            @unique // 权限名称（建议格式：资源:操作，如 'user:read'）
+  description     String?           // 权限描述（可选）
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  rolePermissions RolePermission[]  // 拥有该权限的角色（多对多关系）
+}
+
+/// 用户角色关联表 - 实现用户与角色的多对多关系
+///
+/// 设计说明：
+/// 1. 使用复合主键 [userId, roleId]：确保一个用户不能重复分配同一个角色
+/// 2. assignedAt：记录角色分配时间，可用于审计和权限过期管理
+/// 3. onDelete: Cascade：用户或角色删除时，自动删除关联记录
+/// 4. 添加 roleId 索引：加速查询"某个角色下的所有用户"
+///
+/// 使用场景：
+/// - 给用户分配角色：insert into UserRole (userId, roleId)
+/// - 查询用户的所有角色：通过 userId 查询 UserRole
+/// - 查询角色的所有用户：通过 roleId 查询 UserRole
+model UserRole {
+  userId     Int      // 用户 ID
+  roleId     Int      // 角色 ID
+  assignedAt DateTime @default(now()) // 角色分配时间（可用于审计）
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  // 复合主键：确保一个用户不能重复分配同一个角色
+  @@id([userId, roleId])
+  @@index([roleId]) // 索引：加速查询"某个角色下的所有用户"
+}
+
+/// 角色权限关联表 - 实现角色与权限的多对多关系
+///
+/// 设计说明：
+/// 1. 使用复合主键 [roleId, permissionId]：确保一个角色不能重复分配同一个权限
+/// 2. onDelete: Cascade：角色或权限删除时，自动删除关联记录
+/// 3. 添加 permissionId 索引：加速查询"某个权限被哪些角色拥有"
+///
+/// 使用场景：
+/// - 给角色分配权限：insert into RolePermission (roleId, permissionId)
+/// - 查询角色的所有权限：通过 roleId 查询 RolePermission
+/// - 查询权限被哪些角色拥有：通过 permissionId 查询 RolePermission
+///
+/// 权限检查流程：
+/// 1. 查询用户的角色：User -> UserRole -> Role
+/// 2. 查询角色的权限：Role -> RolePermission -> Permission
+/// 3. 判断用户是否有某个权限：检查用户的所有角色是否包含该权限
+model RolePermission {
+  roleId       Int // 角色 ID
+  permissionId Int // 权限 ID
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  // 复合主键：确保一个角色不能重复分配同一个权限
+  @@id([roleId, permissionId])
+  @@index([permissionId]) // 索引：加速查询"某个权限被哪些角色拥有"
+}
