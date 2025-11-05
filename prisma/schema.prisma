@@ -5,8 +5,7 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
@@ -27,16 +26,16 @@ datasource db {
 /// 3. 一个用户可以有多个角色（通过 UserRole 中间表实现多对多关系）
 /// 4. email 设为唯一且添加索引：用于快速查找和登录验证
 model User {
-  id           Int         @id @default(autoincrement())
-  email        String      @unique // 邮箱，用于登录和找回密码
-  name         String?     // 用户昵称（可选）
-  avatarUrl    String?     // 头像 URL（可选，可从第三方登录提供商获取）
-  passwordHash String?     // 本地密码哈希（可选，仅本地登录用户需要）
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
+  id           Int      @id @default(autoincrement())
+  email        String   @unique // 邮箱，用于登录和找回密码
+  name         String? // 用户昵称（可选）
+  avatarUrl    String? // 头像 URL（可选，可从第三方登录提供商获取）
+  passwordHash String? // 本地密码哈希（可选，仅本地登录用户需要）
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  accounts     Account[]   // 关联的第三方登录账户（一个用户可以有多个）
-  userRoles    UserRole[]  // 用户拥有的角色（多对多关系）
+  accounts  Account[] // 关联的第三方登录账户（一个用户可以有多个）
+  userRoles UserRole[] // 用户拥有的角色（多对多关系）
 
   @@index([email]) // 为邮箱添加索引，加速登录查询
 }
@@ -55,19 +54,19 @@ model User {
 /// - GitHub 登录：provider = 'github'，providerAccountId = GitHub 返回的 id
 /// - 本地登录：provider = 'credentials'，providerAccountId 可以为空或存储邮箱
 model Account {
-  id                 Int          @id @default(autoincrement())
-  userId             Int          // 关联的用户 ID
-  provider           AuthProvider // 登录提供商（google/github/credentials）
-  providerAccountId  String      // 第三方提供商返回的唯一用户 ID（如 Google 的 sub，GitHub 的 id）
+  id                Int          @id @default(autoincrement())
+  userId            Int // 关联的用户 ID
+  provider          AuthProvider // 登录提供商（google/github/credentials）
+  providerAccountId String // 第三方提供商返回的唯一用户 ID（如 Google 的 sub，GitHub 的 id）
 
   // OAuth Token 相关字段（用于后续调用第三方 API）
-  accessToken        String?     // OAuth access token（用于调用第三方 API）
-  refreshToken       String?     // OAuth refresh token（用于刷新 access token）
-  expiresAt          Int?        // token 过期时间（Unix 时间戳，秒级）
-  scope              String?     // OAuth 授权范围（如 'read:user email'）
-  tokenType          String?     // token 类型（通常是 'Bearer'）
+  accessToken  String? // OAuth access token（用于调用第三方 API）
+  refreshToken String? // OAuth refresh token（用于刷新 access token）
+  expiresAt    Int? // token 过期时间（Unix 时间戳，秒级）
+  scope        String? // OAuth 授权范围（如 'read:user email'）
+  tokenType    String? // token 类型（通常是 'Bearer'）
 
-  user               User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   // 唯一约束：同一提供商的同一账户只能绑定一个用户
   // 例如：Google 的某个 sub 只能绑定到一个 User
@@ -81,8 +80,8 @@ model Account {
 /// - github: GitHub OAuth 登录
 /// - credentials: 本地用户名密码登录
 enum AuthProvider {
-  google      // Google OAuth 2.0
-  github      // GitHub OAuth 2.0
+  google // Google OAuth 2.0
+  github // GitHub OAuth 2.0
   credentials // 本地凭证登录（邮箱 + 密码）
 }
 
@@ -101,14 +100,14 @@ enum AuthProvider {
 /// - 角色 "admin" 可以拥有 "user:read", "user:write", "user:delete" 等权限
 /// - 角色 "user" 只能拥有 "user:read" 权限
 model Role {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique // 角色名称（如：'admin', 'user', 'moderator'）
-  description     String?           // 角色描述（可选）
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String   @unique // 角色名称（如：'admin', 'user', 'moderator'）
+  description String? // 角色描述（可选）
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  rolePermissions RolePermission[]  // 角色拥有的权限（多对多关系）
-  userRoles       UserRole[]        // 拥有该角色的用户（多对多关系）
+  rolePermissions RolePermission[] // 角色拥有的权限（多对多关系）
+  userRoles       UserRole[] // 拥有该角色的用户（多对多关系）
 }
 
 /// 权限表 - 定义系统中的具体权限（如：user:read, user:write, post:delete）
@@ -126,13 +125,13 @@ model Role {
 /// - 'post:write': 创建/修改文章
 /// - 'post:delete': 删除文章
 model Permission {
-  id              Int               @id @default(autoincrement())
-  name            String            @unique // 权限名称（建议格式：资源:操作，如 'user:read'）
-  description     String?           // 权限描述（可选）
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id          Int      @id @default(autoincrement())
+  name        String   @unique // 权限名称（建议格式：资源:操作，如 'user:read'）
+  description String? // 权限描述（可选）
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 
-  rolePermissions RolePermission[]  // 拥有该权限的角色（多对多关系）
+  rolePermissions RolePermission[] // 拥有该权限的角色（多对多关系）
 }
 
 /// 用户角色关联表 - 实现用户与角色的多对多关系
@@ -148,12 +147,12 @@ model Permission {
 /// - 查询用户的所有角色：通过 userId 查询 UserRole
 /// - 查询角色的所有用户：通过 roleId 查询 UserRole
 model UserRole {
-  userId     Int      // 用户 ID
-  roleId     Int      // 角色 ID
+  userId     Int // 用户 ID
+  roleId     Int // 角色 ID
   assignedAt DateTime @default(now()) // 角色分配时间（可用于审计）
 
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role       Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   // 复合主键：确保一个用户不能重复分配同一个角色
   @@id([userId, roleId])
@@ -180,8 +179,8 @@ model RolePermission {
   roleId       Int // 角色 ID
   permissionId Int // 权限 ID
 
-  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
 
   // 复合主键：确保一个角色不能重复分配同一个权限
   @@id([roleId, permissionId])

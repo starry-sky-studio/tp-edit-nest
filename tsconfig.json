@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "module": "commonjs",
+    // 这对于导入 CommonJS 模块至关重要
+    "esModuleInterop": true,
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,

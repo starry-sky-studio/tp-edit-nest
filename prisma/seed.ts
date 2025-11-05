@@ -3,56 +3,67 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  await prisma.user.deleteMany();
-  await prisma.post.deleteMany();
+  console.log('Seeding to DB:', process.env.DATABASE_URL);
+  await prisma.$connect();
 
-  console.log('Seeding...');
-
-  const user1 = await prisma.user.create({
-    data: {
-      email: 'lisa@simpson.com',
-      firstname: 'Lisa',
-      lastname: 'Simpson',
-      password: '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6xNekdHgTGmrpHEfIoxm', // secret42
-      role: 'USER',
-      posts: {
-        create: {
-          title: 'Join us for Prisma Day 2019 in Berlin',
-          content: 'https://www.prisma.io/day/',
-          published: true,
-        },
-      },
-    },
-  });
-  const user2 = await prisma.user.create({
-    data: {
-      email: 'bart@simpson.com',
-      firstname: 'Bart',
-      lastname: 'Simpson',
-      role: 'ADMIN',
-      password: '$2b$10$EpRnTzVlqHNP0.fUbXUwSOyuiXe/QLSUG6xNekdHgTGmrpHEfIoxm', // secret42
-      posts: {
-        create: [
-          {
-            title: 'Subscribe to GraphQL Weekly for community news',
-            content: 'https://graphqlweekly.com/',
-            published: true,
-          },
-          {
-            title: 'Follow Prisma on Twitter',
-            content: 'https://twitter.com/prisma',
-            published: false,
-          },
-        ],
-      },
+  // 1) 确保存在管理员角色（admin）
+  const adminRole = await prisma.role.upsert({
+    where: { name: 'admin' },
+    update: {},
+    create: {
+      name: 'admin',
+      description: '超级管理员，拥有全部权限',
     },
   });
 
-  console.log({ user1, user2 });
+  // 2) 确保存在管理员账号（admin@example.com，密码为 123456）
+  // 注意：这里直接存入明文 "123456" 到 passwordHash 字段，仅用于示例/本地开发
+  // 生产环境请改为存储真正的哈希（如 bcrypt/argon2）。
+  const adminUser = await prisma.user.upsert({
+    where: { email: 'admin@example.com' },
+    update: {},
+    create: {
+      email: 'admin@example.com',
+      name: 'admin',
+      passwordHash: '123456',
+    },
+  });
+  console.log('Upserted admin user id:', adminUser.id);
+
+  // 3) 绑定用户与管理员角色（幂等）
+  await prisma.userRole.upsert({
+    where: {
+      userId_roleId: {
+        userId: adminUser.id,
+        roleId: adminRole.id,
+      },
+    },
+    update: {},
+    create: {
+      userId: adminUser.id,
+      roleId: adminRole.id,
+    },
+  });
+
+  const counts = await Promise.all([
+    prisma.user.count(),
+    prisma.role.count(),
+    prisma.userRole.count(),
+  ]);
+  console.log('Counts => users/roles/userRoles:', counts);
+
+  const checkAdmin = await prisma.user.findUnique({
+    where: { email: 'admin@example.com' },
+  });
+  console.log('Check admin exists:', !!checkAdmin);
 }
 
 main()
-  .catch((e) => console.error(e))
-  .finally(async () => {
+  .then(async () => {
     await prisma.$disconnect();
+  })
+  .catch(async (e) => {
+    console.error(e);
+    await prisma.$disconnect();
+    process.exit(1);
   });
