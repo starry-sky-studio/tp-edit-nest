@@ -1,0 +1,25 @@
+{
+	// 使用 Biome 作为默认格式化工具
+	"editor.defaultFormatter": "biomejs.biome",
+	"editor.formatOnSave": true,
+
+	// 禁用 Prettier
+	"prettier.enable": false,
+
+	// 禁用 ESLint 的格式化
+	"eslint.format.enable": false,
+
+	// TypeScript/JavaScript 使用 Biome
+	"[typescript]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[javascript]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[json]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	},
+	"[jsonc]": {
+		"editor.defaultFormatter": "biomejs.biome"
+	}
+}

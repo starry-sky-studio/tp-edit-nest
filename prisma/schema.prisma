@@ -1,0 +1,110 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// User & Authentication Models
+// ============================================
+
+/// 用户表 - 存储用户的基本信息
+///
+/// 设计说明：
+/// 1. passwordHash 设为可选：支持纯第三方登录用户（如只用 Google/GitHub 登录的用户）
+///    如果用户使用本地密码登录，则存储 bcrypt/argon2 加密后的哈希值
+/// 2. 一个用户可以有多个 Account（支持同时绑定 Google 和 GitHub）
+/// 3. email 设为唯一且添加索引：用于快速查找和登录验证
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique // 邮箱，用于登录和找回密码
+  name         String? // 用户昵称（可选）
+  avatarUrl    String? // 头像 URL（可选，可从第三方登录提供商获取）
+  passwordHash String? // 本地密码哈希（可选，仅本地登录用户需要）
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime? // 软删除时间，为 null 表示未删除
+
+  accounts Account[] // 关联的第三方登录账户（一个用户可以有多个）
+  articles Article[] // 用户创建的文章列表
+
+  @@index([email]) // 为邮箱添加索引，加速登录查询
+  @@index([deletedAt]) // 软删除索引，便于过滤未删除用户
+}
+
+/// 第三方登录账户表 - 存储用户的第三方登录凭证信息
+///
+/// 设计说明：
+/// 1. 支持一个用户绑定多个第三方登录方式（如同时绑定 Google 和 GitHub）
+/// 2. provider + providerAccountId 组合唯一：防止同一第三方账户绑定多个用户
+/// 3. 存储 accessToken 和 refreshToken：用于后续调用第三方 API（如获取用户信息）
+/// 4. expiresAt：token 过期时间（Unix 时间戳），用于判断是否需要刷新 token
+/// 5. onDelete: Cascade：用户删除时，自动删除关联的第三方账户
+///
+/// 第三方登录流程：
+/// - Google 登录：provider = 'google'，providerAccountId = Google 返回的 sub/user_id
+/// - GitHub 登录：provider = 'github'，providerAccountId = GitHub 返回的 id
+/// - 本地登录：provider = 'credentials'，providerAccountId 可以为空或存储邮箱
+model Account {
+  id                Int          @id @default(autoincrement())
+  userId            Int // 关联的用户 ID
+  provider          AuthProvider // 登录提供商（google/github/credentials）
+  providerAccountId String // 第三方提供商返回的唯一用户 ID（如 Google 的 sub，GitHub 的 id）
+
+  // OAuth Token 相关字段（用于后续调用第三方 API）
+  accessToken  String? // OAuth access token（用于调用第三方 API）
+  refreshToken String? // OAuth refresh token（用于刷新 access token）
+  expiresAt    Int? // token 过期时间（Unix 时间戳，秒级）
+  scope        String? // OAuth 授权范围（如 'read:user email'）
+  tokenType    String? // token 类型（通常是 'Bearer'）
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // 唯一约束：同一提供商的同一账户只能绑定一个用户
+  // 例如：Google 的某个 sub 只能绑定到一个 User
+  @@unique([provider, providerAccountId])
+  @@index([userId]) // 为 userId 添加索引，加速查询用户的所有登录账户
+}
+
+/// 登录提供商枚举
+///
+/// - google: Google OAuth 登录
+/// - github: GitHub OAuth 登录
+/// - credentials: 本地用户名密码登录
+enum AuthProvider {
+  google // Google OAuth 2.0
+  github // GitHub OAuth 2.0
+  credentials // 本地凭证登录（邮箱 + 密码）
+}
+
+// ============================================
+// Article Models
+// ============================================
+
+/// 文章表 - 存储用户的文章内容
+///
+/// 设计说明：
+/// 1. 使用软删除：deletedAt 字段，删除时只标记时间，不真正删除数据
+/// 2. 支持 Markdown 格式：content 字段存储文章内容（可以是 Markdown 或纯文本）
+/// 3. 关联到用户：每个文章属于一个用户
+/// 4. 添加索引：userId 和 deletedAt 索引，加速查询用户文章和过滤已删除文章
+model Article {
+  id        Int      @id @default(autoincrement())
+  userId    Int // 文章所属用户 ID
+  title     String // 文章标题
+  content   String @db.Text // 文章内容（支持 Markdown）
+  createdAt DateTime @default(now()) // 创建时间
+  updatedAt DateTime @updatedAt // 更新时间（自动更新）
+  deletedAt DateTime? // 删除时间（软删除，为 null 表示未删除）
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId]) // 为 userId 添加索引，加速查询用户的所有文章
+  @@index([deletedAt]) // 为 deletedAt 添加索引，加速过滤已删除的文章
+}

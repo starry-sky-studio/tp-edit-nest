@@ -1,0 +1,118 @@
+# 开发环境 Docker Compose 配置
+# 使用方法: docker-compose up -d
+
+# 定义数据卷
+volumes:
+  tp_postgres_data:
+  tp_minio_data:
+  tp_redis_data:
+
+# 定义网络
+networks:
+  tp_network:
+    driver: bridge
+
+# 定义服务
+services:
+  # ------------------------------------
+  # 1. PostgreSQL 数据库
+  # ------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: tp_postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-tp_app_db}
+      POSTGRES_USER: ${POSTGRES_USER:-admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-123456}
+    volumes:
+      - tp_postgres_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d  # 假设初始化脚本路径
+    networks:
+      - tp_network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-admin} -d ${POSTGRES_DB:-tp_app_db}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # ------------------------------------
+  # 2. Redis 缓存服务
+  # ------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: tp_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - tp_redis_data:/data
+    networks:
+      - tp_network
+    command: redis-server --appendonly yes --dir /data --dbfilename dump.rdb
+
+  # ------------------------------------
+  # 3. MinIO 对象存储服务
+  # ------------------------------------
+  minio:
+    image: quay.io/minio/minio:latest
+    container_name: tp_minio
+    restart: unless-stopped
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      # 默认创建桶，方便应用启动
+      MINIO_DEFAULT_BUCKETS: "uploads,images,documents"
+    volumes:
+      - tp_minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - tp_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # ------------------------------------
+  # 4. NestJS 应用服务 (使用 Dockerfile)
+  # ------------------------------------
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development-runner # 默认使用开发环境 (方便调试)
+    container_name: tp_app
+    restart: unless-stopped
+    ports:
+      - "3005:3005"
+    depends_on:
+      postgres:
+        condition: service_healthy # 确保数据库健康
+      minio:
+        condition: service_healthy # 确保 MinIO 启动
+      redis:
+        condition: service_started # 确保 Redis 启动
+    environment:
+      NODE_ENV: development
+      PORT: 3005
+      DATABASE_URL: postgresql://${POSTGRES_USER:-admin}:${POSTGRES_PASSWORD:-123456}@postgres:5432/${POSTGRES_DB:-tp_app_db}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: 9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      GOOGLE_GENERATIVE_AI_API_KEY: ${GOOGLE_GENERATIVE_AI_API_KEY}
+    volumes:
+      - .:/usr/src/app # 挂载代码目录
+      - /usr/src/app/node_modules # 确保 node_modules 目录不会被主机覆盖
+    networks:
+      - tp_network

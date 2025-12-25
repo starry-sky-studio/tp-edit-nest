@@ -1,0 +1,82 @@
+name: Deploy to Production
+
+# 触发条件
+on:
+  # 推送到 main 分支时自动部署
+  push:
+    branches:
+      - main
+
+  # 支持手动触发部署
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to Server
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT || 22 }}
+          command_timeout: 30m
+          script: |
+            echo "=========================================="
+            echo "开始部署 tp-edit-nest 应用"
+            echo "=========================================="
+
+            # 进入项目目录
+            cd ${{ secrets.DEPLOY_PATH }}
+
+            # 显示当前版本
+            echo "当前版本:"
+            git log -1 --oneline
+
+            # 拉取最新代码
+            echo ""
+            echo "拉取最新代码..."
+            git fetch origin
+            git pull origin main
+
+            # 显示新版本
+            echo ""
+            echo "更新后版本:"
+            git log -1 --oneline
+
+            # 执行部署脚本
+            echo ""
+            echo "执行部署脚本..."
+            chmod +x deploy.sh
+            ./deploy.sh
+
+            # 健康检查
+            echo ""
+            echo "执行健康检查..."
+            sleep 5
+            if curl -f http://localhost:3005/health > /dev/null 2>&1; then
+              echo "✓ 健康检查通过"
+            else
+              echo "✗ 健康检查失败"
+              exit 1
+            fi
+
+            echo ""
+            echo "=========================================="
+            echo "部署完成！"
+            echo "=========================================="
+
+      - name: Deployment Status
+        if: always()
+        run: |
+          if [ ${{ job.status }} == 'success' ]; then
+            echo "🎉 部署成功！"
+          else
+            echo "❌ 部署失败，请查看日志"
+          fi

@@ -1,0 +1,37 @@
+# 依赖
+node_modules
+.pnpm-store
+
+out
+dist
+
+# 开发工具
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# 环境变量（不要包含敏感信息）
+.env*.local
+.env.development
+.env.test
+
+# 其他
+.DS_Store
+*.pem
+.husky
+.github
+
+# 文档
+README.md
+LICENSE.md
+AGENTS.md
+docs
+
+
