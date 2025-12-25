@@ -124,7 +124,7 @@ df -h
    ```bash
    # 检查防火墙状态
    systemctl status firewalld
-   
+
    # 如果需要开放端口
    firewall-cmd --permanent --add-port=80/tcp
    firewall-cmd --permanent --add-port=443/tcp
@@ -135,7 +135,7 @@ df -h
    ```bash
    # 查看 SELinux 状态
    getenforce
-   
+
    # 如果遇到权限问题，可以临时禁用（不推荐）
    # setenforce 0
    ```
@@ -147,7 +147,7 @@ df -h
    chmod 600 /swapfile
    mkswap /swapfile
    swapon /swapfile
-   
+
    # 永久启用
    echo '/swapfile none swap sw 0 0' >> /etc/fstab
    ```

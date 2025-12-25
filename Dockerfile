@@ -32,7 +32,7 @@ RUN pnpm run build
 
 # 验证构建产物是否存在
 RUN ls -la dist/ || (echo "构建失败：dist 目录不存在" && exit 1)
-RUN test -f dist/src/main.js || (echo "构建失败：dist/src/main.js 不存在" && exit 1)
+RUN test -f dist/main.js || (echo "构建失败：dist/main.js 不存在" && exit 1)
 
 # ====================================
 # Stage 2: Development Runner (用于本地开发/调试)
@@ -83,7 +83,7 @@ COPY --from=development /usr/src/app/dist ./dist
 
 # 验证 dist 目录和 main.js 是否存在
 RUN ls -la dist/ || (echo "错误：dist 目录不存在" && exit 1)
-RUN test -f dist/src/main.js || (echo "错误：dist/src/main.js 不存在" && exit 1)
+RUN test -f dist/main.js || (echo "错误：dist/main.js 不存在" && exit 1)
 
 # 🚨 关键：在运行时镜像中生成 Prisma Client
 # 使用 pnpm exec 确保使用指定的 Prisma 版本（6.x），而不是 npx 安装的最新版本
@@ -95,5 +95,5 @@ EXPOSE 3005
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD curl -f http://localhost:3005/health || exit 1
 
-# 生产环境启动命令（注意：构建后的文件在 dist/src/main.js）
-CMD ["node", "dist/src/main.js"]
+# 生产环境启动命令（注意：构建后的文件在 dist/main.js）
+CMD ["node", "dist/main.js"]
