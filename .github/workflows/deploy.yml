@@ -19,14 +19,37 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Validate Secrets
+        run: |
+          echo "检查必需的 GitHub Secrets..."
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "❌ 错误: SSH_HOST 未配置"
+            echo "请在 GitHub 仓库 Settings > Secrets and variables > Actions 中配置 SSH_HOST"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SSH_USER }}" ]; then
+            echo "❌ 错误: SSH_USER 未配置"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "❌ 错误: SSH_PRIVATE_KEY 未配置"
+            exit 1
+          fi
+          if [ -z "${{ secrets.DEPLOY_PATH }}" ]; then
+            echo "❌ 错误: DEPLOY_PATH 未配置"
+            exit 1
+          fi
+          echo "✅ 所有必需的 Secrets 已配置"
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
+          port: ${{ secrets.SSH_PORT || '22' }}
           command_timeout: 30m
+          debug: true
           script: |
             echo "=========================================="
             echo "开始部署 tp-edit-nest 应用"
