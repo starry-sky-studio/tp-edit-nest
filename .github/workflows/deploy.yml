@@ -91,14 +91,16 @@ jobs:
             chmod +x deploy.sh
             ./deploy.sh
 
-            # 健康检查
+            # 健康检查（deploy.sh 已经包含健康检查，这里作为二次验证）
             echo ""
-            echo "执行健康检查..."
+            echo "执行最终健康检查..."
             sleep 5
-            if curl -f http://localhost:3005/health > /dev/null 2>&1; then
+            if curl -f http://localhost:3005/api/health > /dev/null 2>&1; then
               echo "✓ 健康检查通过"
             else
               echo "✗ 健康检查失败"
+              echo "查看应用日志:"
+              docker compose -f docker-compose.prod.yaml logs --tail=50 app || docker-compose -f docker-compose.prod.yaml logs --tail=50 app
               exit 1
             fi
 
