@@ -144,7 +144,7 @@ max_attempts=30
 attempt=0
 
 while [ $attempt -lt $max_attempts ]; do
-    if curl -f http://localhost:3005/health > /dev/null 2>&1; then
+    if curl -f http://localhost:3005/api/health > /dev/null 2>&1; then
         echo -e "${GREEN}✓ 应用健康检查通过${NC}"
         break
     fi
