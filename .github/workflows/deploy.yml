@@ -19,14 +19,49 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Validate Secrets
+        run: |
+          echo "检查必需的 GitHub Secrets..."
+          if [ -z "${{ secrets.SSH_HOST }}" ]; then
+            echo "❌ 错误: SSH_HOST 未配置"
+            echo "请在 GitHub 仓库 Settings > Secrets and variables > Actions 中配置 SSH_HOST"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SSH_USER }}" ]; then
+            echo "❌ 错误: SSH_USER 未配置"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+            echo "❌ 错误: SSH_PRIVATE_KEY 未配置"
+            exit 1
+          fi
+          if [ -z "${{ secrets.DEPLOY_PATH }}" ]; then
+            echo "❌ 错误: DEPLOY_PATH 未配置"
+            exit 1
+          fi
+
+          # 验证私钥格式
+          PRIVATE_KEY="${{ secrets.SSH_PRIVATE_KEY }}"
+          if [[ ! "$PRIVATE_KEY" =~ "BEGIN" ]] || [[ ! "$PRIVATE_KEY" =~ "END" ]]; then
+            echo "⚠️  警告: SSH_PRIVATE_KEY 可能格式不正确"
+            echo "私钥应该包含 -----BEGIN OPENSSH PRIVATE KEY----- 和 -----END OPENSSH PRIVATE KEY-----"
+            echo "请参考 .github/SSH_TROUBLESHOOTING.md 进行排查"
+          fi
+
+          echo "✅ 所有必需的 Secrets 已配置"
+          echo "SSH_HOST: ${{ secrets.SSH_HOST }}"
+          echo "SSH_USER: ${{ secrets.SSH_USER }}"
+          echo "SSH_PORT: ${{ secrets.SSH_PORT || '22' }}"
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT || 22 }}
+          port: ${{ secrets.SSH_PORT || '22' }}
           command_timeout: 30m
+          debug: true
           script: |
             echo "=========================================="
             echo "开始部署 tp-edit-nest 应用"
@@ -56,14 +91,16 @@ jobs:
             chmod +x deploy.sh
             ./deploy.sh
 
-            # 健康检查
+            # 健康检查（deploy.sh 已经包含健康检查，这里作为二次验证）
             echo ""
-            echo "执行健康检查..."
+            echo "执行最终健康检查..."
             sleep 5
-            if curl -f http://localhost:3005/health > /dev/null 2>&1; then
+            if curl -f http://localhost:3005/api/health > /dev/null 2>&1; then
               echo "✓ 健康检查通过"
             else
               echo "✗ 健康检查失败"
+              echo "查看应用日志:"
+              docker compose -f docker-compose.prod.yaml logs --tail=50 app || docker-compose -f docker-compose.prod.yaml logs --tail=50 app
               exit 1
             fi
 
