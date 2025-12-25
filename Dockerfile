@@ -19,7 +19,9 @@ COPY package.json pnpm-lock.yaml ./
 COPY prisma ./prisma/
 
 # 安装所有依赖
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile \
+    && pnpm store prune \
+    && rm -rf /root/.pnpm-store
 
 # 🚨 关键：在构建前生成 Prisma Client（使用 pnpm 确保使用正确的版本）
 RUN pnpm exec prisma generate
@@ -93,7 +95,7 @@ EXPOSE 3005
 
 # 健康检查 - 确保应用启动并响应
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-  CMD curl -f http://localhost:3005/health || exit 1
+  CMD curl -f http://localhost:3005/api/health || exit 1
 
 # 生产环境启动命令（注意：构建后的文件在 dist/main.js）
 CMD ["node", "dist/main.js"]
