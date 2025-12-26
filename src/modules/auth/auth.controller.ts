@@ -6,6 +6,7 @@ import {
 	ApiTags,
 	ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Public } from '../../decorators';
 import { AuthService } from './auth.service';
 import { CreateAuthDto } from './dto/create-auth.dto';
 import { type OAuthLoginDto, OAuthProvider } from './dto/oauth-login.dto';
@@ -16,6 +17,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 export class AuthController {
 	constructor(private readonly authService: AuthService) {}
 
+	@Public()
 	@Post('signup')
 	@ApiOperation({ summary: '用户注册' })
 	@ApiOkResponse({
@@ -56,6 +58,7 @@ export class AuthController {
 		return this.authService.signup(createAuthDto);
 	}
 
+	@Public()
 	@Post('login')
 	@ApiOperation({ summary: '用户登录' })
 	@ApiOkResponse({
@@ -96,6 +99,7 @@ export class AuthController {
 		return this.authService.login(createAuthDto);
 	}
 
+	@Public()
 	@Post('oauth/:provider')
 	@ApiOperation({
 		summary: '第三方登录（GitHub / Google）',
@@ -157,6 +161,7 @@ export class AuthController {
 		return this.authService.oauthLogin(dto);
 	}
 
+	@Public()
 	@Post('refresh')
 	@ApiOperation({ summary: '刷新访问令牌' })
 	@ApiOkResponse({
@@ -191,6 +196,7 @@ export class AuthController {
 	 * GitHub OAuth 回调：
 	 * 前端拿到 GitHub 返回的 code 后，调用此接口完成登录。
 	 */
+	@Public()
 	@Post('github/callback')
 	@ApiOperation({
 		summary: 'GitHub OAuth 回调：使用 code 完成登录',
@@ -210,6 +216,7 @@ export class AuthController {
 	/**
 	 * Google OAuth 回调：使用 code 完成登录
 	 */
+	@Public()
 	@Post('google/callback')
 	@ApiOperation({
 		summary: 'Google OAuth 回调：使用 code 完成登录',
