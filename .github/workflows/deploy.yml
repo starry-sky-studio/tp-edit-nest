@@ -85,6 +85,60 @@ jobs:
             echo "更新后版本:"
             git log -1 --oneline
 
+            # ============================================
+            # 清理 Docker 资源以释放磁盘空间
+            # ============================================
+            echo ""
+            echo "=========================================="
+            echo "清理 Docker 资源以释放磁盘空间"
+            echo "=========================================="
+
+            # 显示清理前的磁盘使用情况
+            echo ""
+            echo "清理前磁盘使用情况:"
+            df -h / | tail -1
+            echo ""
+            echo "清理前 Docker 磁盘使用情况:"
+            docker system df || echo "无法获取 Docker 磁盘使用情况"
+
+            # 停止所有运行中的容器（除了当前部署需要的）
+            echo ""
+            echo "停止未使用的容器..."
+            docker ps -q | xargs -r docker stop 2>/dev/null || true
+
+            # 删除所有停止的容器
+            echo "删除停止的容器..."
+            docker container prune -f || true
+
+            # 删除未使用的镜像
+            echo "删除未使用的镜像..."
+            docker image prune -af || true
+
+            # 删除未使用的卷（谨慎：可能会删除数据）
+            echo "删除未使用的卷..."
+            docker volume prune -f || true
+
+            # 删除未使用的网络
+            echo "删除未使用的网络..."
+            docker network prune -f || true
+
+            # 清理构建缓存
+            echo "清理构建缓存..."
+            docker builder prune -af || true
+
+            # 全面清理（包括未使用的数据）
+            echo "执行全面清理..."
+            docker system prune -af --volumes || true
+
+            # 显示清理后的磁盘使用情况
+            echo ""
+            echo "清理后磁盘使用情况:"
+            df -h / | tail -1
+            echo ""
+            echo "清理后 Docker 磁盘使用情况:"
+            docker system df || echo "无法获取 Docker 磁盘使用情况"
+            echo ""
+
             # 执行部署脚本
             echo ""
             echo "执行部署脚本..."
