@@ -6,6 +6,7 @@ import {
 	ApiTags,
 } from '@nestjs/swagger';
 import { AppService } from './app.service';
+import { Public } from './decorators';
 import { RedisService } from './shared/redis/redis.service';
 
 @ApiTags('应用接口')
@@ -16,6 +17,7 @@ export class AppController {
 		private readonly redisService: RedisService,
 	) {}
 
+	@Public()
 	@Get()
 	@ApiOperation({ summary: '获取欢迎信息', description: '返回应用的欢迎信息' })
 	@ApiOkResponse({
@@ -29,6 +31,7 @@ export class AppController {
 		return this.appService.getHello();
 	}
 
+	@Public()
 	@Get('health')
 	@ApiOperation({
 		summary: '应用健康检查',
@@ -65,6 +68,7 @@ export class AppController {
 		};
 	}
 
+	@Public()
 	@Get('redis/health')
 	@ApiOperation({
 		summary: 'Redis 健康检查',
@@ -132,6 +136,7 @@ export class AppController {
 		return await this.redisService.healthCheck();
 	}
 
+	@Public()
 	@Get('redis/ping')
 	@ApiOperation({
 		summary: 'Redis PING 测试',
